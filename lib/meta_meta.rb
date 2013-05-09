@@ -16,15 +16,33 @@ class MetaMeta
   end
 
   def infect
-    p "Infecting host: override_target"
     override_target
-    p "Infecting host: bind_exit_handler"
     bind_exit_handler
   end
 
   def lie_in_wait
     define_namespaced_class
+    set_traps
+  end
+
+  def set_traps
     define_method_added_trap
+    define_include_trap
+    define_extend_trap
+  end
+
+  def define_include_trap
+    meta_meta = self
+    target_method_name = target_method
+    definition = Proc.new { |*args| super(*args); meta_meta.method_alert if method_defined?(target_method_name) }
+    constant_metaclass.send(:define_method, :include, definition)
+  end
+
+  def define_extend_trap
+    meta_meta = self
+    target_method_name = target_method
+    definition = Proc.new { |*args| super(*args); meta_meta.method_alert if respond_to?(target_method_name) }
+    constant_metaclass.send(:define_method, :extend, definition)
   end
 
   def method_alert

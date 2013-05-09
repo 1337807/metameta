@@ -182,6 +182,7 @@ describe MetaMeta do
 
     before do
       MetaMeta.any_instance.stub(:infect)
+      MetaMeta.any_instance.stub(:lie_in_wait)
     end
 
     after do
@@ -425,6 +426,78 @@ describe MetaMeta do
         meta_meta.should_not_receive(:infect)
         class Borg; def self.assimilate; end; end
       end
+    end
+  end
+
+  context "#define_include_trap" do
+    let(:meta_meta) { MetaMeta.new }
+
+    before do
+      MetaMeta.any_instance.stub(:locked_on_target?).and_return(true)
+      MetaMeta.any_instance.stub(:infect)
+    end
+
+    before do
+      ENV['COUNT_CALLS_TO'] = "Borg#assimilate"
+      meta_meta.define_namespaced_class
+    end
+
+    after do
+      delete_classes('Borg', 'HiveMind')
+    end
+
+    it "defines include on the target class" do
+      meta_meta.define_include_trap
+      Borg.should respond_to :include
+    end
+
+    it "calls back to method_alert when include is called if the included module defines the method" do
+      meta_meta.define_include_trap
+      meta_meta.should_receive(:method_alert)
+      module HiveMind; def assimilate; end; end
+      Borg.send(:include, HiveMind)
+    end
+
+    it "does not call back to method_alert when include is called if included module does not define the method" do
+      meta_meta.define_include_trap
+      meta_meta.should_not_receive(:method_alert)
+      module HiveMind; end
+      Borg.send(:include, HiveMind)
+    end
+  end
+
+  context "#define_extend_trap" do
+    let(:meta_meta) { MetaMeta.new }
+
+    before do
+      MetaMeta.any_instance.stub(:locked_on_target?).and_return(true)
+      MetaMeta.any_instance.stub(:infect)
+    end
+
+    before do
+      ENV['COUNT_CALLS_TO'] = "Borg.assimilate"
+      meta_meta.define_namespaced_class
+      meta_meta.define_extend_trap
+    end
+
+    after do
+      delete_classes('Borg', 'HiveMind')
+    end
+
+    it "defines extend on the target class" do
+      Borg.method_defined?(:extend).should be_true
+    end
+
+    it "calls back to method_alert when extend is called if the extended module defines the method" do
+      meta_meta.should_receive(:method_alert)
+      module HiveMind; def assimilate; end; end
+      Borg.send(:extend, HiveMind)
+    end
+
+    it "does not call back to method_alert when include is called if included module does not define the method" do
+      meta_meta.should_not_receive(:method_alert)
+      module HiveMind; end
+      Borg.send(:extend, HiveMind)
     end
   end
 end
