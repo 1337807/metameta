@@ -1,21 +1,90 @@
 class MetaMeta
-  attr_reader :env_constant, :target_class, :target_method
+  attr_reader :env_constant, :target_modules, :target_class, :target_method
   attr_accessor :call_count
 
   def initialize
     @env_constant = ENV['COUNT_CALLS_TO']
     @call_count = 0
-    infect
+
+    parse_target
+
+    if locked_on_target?
+      infect
+    else
+      lie_in_wait
+    end
   end
 
   def infect
-    parse_target
     override_target
     bind_exit_handler
   end
 
+  def lie_in_wait
+    define_namespaced_class
+    define_method_added_trap
+  end
+
+  def define_namespaced_class
+    modules = target_modules.inject(Object) do |memo, module_name|
+      memo = memo.const_set(module_name, Module.new)
+    end
+
+    modules.const_set(target_class, Class.new)
+  end
+
+  def define_method_added_trap
+    metaclass = class << constant_namespaced_class; self; end
+    meta_meta = self
+    target_method_name = target_method
+    definition = Proc.new { |method_name| raise meta_meta.infect if method_name.to_s == target_method_name }
+
+    if target_is_instance_method?
+      metaclass.send(:define_method, :method_added, definition)
+    else
+      metaclass.send(:define_method, :singleton_method_added, definition)
+    end
+  end
+
+  def locked_on_target?
+    if target_class_defined? && target_method_defined?
+      true
+    else
+      false
+    end
+  end
+
+  def target_class_defined?
+    if target_modules.any?
+      target_class_defined_within_module?
+    else
+      Object.const_defined?(target_class)
+    end
+  end
+
+  def target_class_defined_within_module?
+    constant_top_level_namespace.const_defined?(target_class)
+  end
+
+  def target_method_defined?
+    if target_modules.any?
+      target_method_defined_within_module?
+    else
+      method_in_class?(constant_class)
+    end
+  end
+
+  def method_in_class?(search_class)
+    search_class.respond_to?(target_method) || search_class.method_defined?(target_method)
+  end
+
+  def target_method_defined_within_module?
+    method_in_class?(constant_namespaced_class)
+  end
+
   def parse_target
     raise InvalidTargetError unless validate_target(env_constant)
+    @target_modules = extract_modules(env_constant)
     @target_class = extract_class(env_constant)
     @target_method = extract_method(env_constant)
   end
@@ -74,11 +143,27 @@ class MetaMeta
 
 
   def constant_class
-    Kernel.const_get(target_class)
+    Object.const_get(target_class)
+  end
+
+  def constant_top_level_namespace
+    Object.const_get(target_modules.first)
+  end
+
+  def constant_namespaced_class
+    namespaced_class = target_modules + Array(target_class)
+
+    namespaced_class.inject(Object) do |memo, constant|
+      memo = memo.const_get(constant)
+    end
+  end
+
+  def extract_modules(target)
+    target.gsub('.', '#').split('#').first.split('::')[0..-2]
   end
 
   def extract_class(target)
-    target.gsub('.', '#').split('#').first
+    target.gsub('.', '#').split('#').first.split('::').last
   end
 
   def extract_method(target)
@@ -99,4 +184,4 @@ class MetaMeta
   end
 end
 
-MetaMeta.new unless ARGV.last == 'spec'
+MetaMeta.new unless ENV['META_META_ENVIRONMENT'] == 'test'
