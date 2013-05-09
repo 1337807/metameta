@@ -374,4 +374,57 @@ describe MetaMeta do
       end
     end
   end
+
+  context "#remove_method_added_trap" do
+    let(:meta_meta) { MetaMeta.new }
+
+    before do
+      MetaMeta.any_instance.stub(:locked_on_target?).and_return(true)
+      MetaMeta.any_instance.stub(:infect)
+    end
+
+    after do
+      delete_classes('Borg')
+    end
+
+    context "given an instance method" do
+      before do
+        ENV['COUNT_CALLS_TO'] = "Borg#assimilate"
+        meta_meta.define_namespaced_class
+        meta_meta.define_method_added_trap
+      end
+
+      context "when method_added already exists" do
+        it "removes 'method_added' on the meta class" do
+          meta_meta.remove_method_added_trap
+          Borg.respond_to?(:method_added).should be_false
+        end
+
+        it "does not call back to infect if the target method is added" do
+          meta_meta.remove_method_added_trap
+          meta_meta.should_not_receive(:infect)
+          class Borg; def assimilate; end; end
+        end
+      end
+    end
+
+    context "given a class method" do
+      before do
+        ENV['COUNT_CALLS_TO'] = "Borg.assimilate"
+        meta_meta.define_namespaced_class
+        meta_meta.define_method_added_trap
+      end
+
+      it "removes 'singleton_method_added' on the meta class" do
+        meta_meta.remove_method_added_trap
+        Borg.respond_to?(:singleton_method_added).should be_false
+      end
+
+      it "does not call back to infect if the target method is added" do
+        meta_meta.remove_method_added_trap
+        meta_meta.should_not_receive(:infect)
+        class Borg; def self.assimilate; end; end
+      end
+    end
+  end
 end

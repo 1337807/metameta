@@ -16,13 +16,20 @@ class MetaMeta
   end
 
   def infect
+    p "Infecting host: override_target"
     override_target
+    p "Infecting host: bind_exit_handler"
     bind_exit_handler
   end
 
   def lie_in_wait
     define_namespaced_class
     define_method_added_trap
+  end
+
+  def method_alert
+    remove_method_added_trap
+    infect
   end
 
   def define_namespaced_class
@@ -34,15 +41,26 @@ class MetaMeta
   end
 
   def define_method_added_trap
-    metaclass = class << constant_namespaced_class; self; end
     meta_meta = self
     target_method_name = target_method
-    definition = Proc.new { |method_name| raise meta_meta.infect if method_name.to_s == target_method_name }
+    definition = Proc.new { |method_name| meta_meta.method_alert if method_name.to_s == target_method_name }
 
     if target_is_instance_method?
-      metaclass.send(:define_method, :method_added, definition)
+      constant_metaclass.send(:define_method, :method_added, definition)
     else
-      metaclass.send(:define_method, :singleton_method_added, definition)
+      constant_metaclass.send(:define_method, :singleton_method_added, definition)
+    end
+  end
+
+  def constant_metaclass
+    class << constant_namespaced_class; self; end
+  end
+
+  def remove_method_added_trap
+    if target_is_instance_method?
+      constant_metaclass.send(:remove_method, :method_added)
+    else
+      constant_metaclass.send(:remove_method, :singleton_method_added)
     end
   end
 
