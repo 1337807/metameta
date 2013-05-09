@@ -1,3 +1,5 @@
+require 'target'
+
 class MetaMeta
   attr_reader :env_constant, :target_modules, :target_class, :target_method
   attr_accessor :call_count
@@ -13,6 +15,16 @@ class MetaMeta
     else
       lie_in_wait
     end
+  end
+
+  def parse_target
+    raise InvalidTargetError unless validate_target(env_constant)
+
+    target = Target.new(env_constant)
+
+    @target_modules = target.module_names
+    @target_class = target.class_name
+    @target_method = target.method_name
   end
 
   def infect
@@ -116,13 +128,6 @@ class MetaMeta
 
   def target_method_defined_within_module?
     method_in_class?(constant_namespaced_class)
-  end
-
-  def parse_target
-    raise InvalidTargetError unless validate_target(env_constant)
-    @target_modules = extract_modules(env_constant)
-    @target_class = extract_class(env_constant)
-    @target_method = extract_method(env_constant)
   end
 
   def override_target
