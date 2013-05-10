@@ -114,69 +114,6 @@ describe MetaMeta do
     end
   end
 
-  context "raises an InvalidTargetError" do
-    before do
-      MetaMeta.any_instance.stub(:locked_on_target?).and_return(true)
-    end
-
-    it "raises an InvalidTargetError given a constant without '#' or '.'" do
-      ENV['COUNT_CALLS_TO'] = "NinetyNineLuftballoons"
-      expect { MetaMeta.new }.to raise_error MetaMeta::InvalidTargetError
-    end
-
-    it "raises an InvalidTargetError given a constant with '#' and '.'" do
-      ENV['COUNT_CALLS_TO'] = "Ninety#nine.luftballoons"
-      expect { MetaMeta.new }.to raise_error MetaMeta::InvalidTargetError
-    end
-
-    it "raises an InvalidTargetError given a constant that starts with a lowercase letter" do
-      ENV['COUNT_CALLS_TO'] = "ninetyNineLuftballoons"
-      expect { MetaMeta.new }.to raise_error MetaMeta::InvalidTargetError
-    end
-  end
-
-  context "#parse_target" do
-    before do
-      MetaMeta.any_instance.stub(:locked_on_target?).and_return(:true)
-      MetaMeta.any_instance.stub(:infect)
-    end
-
-    it "parses the target class given a class and an instance method" do
-      ENV['COUNT_CALLS_TO'] = "NinetyNine#luftballoons"
-      MetaMeta.new.target_class.should == 'NinetyNine'
-    end
-
-    it "parses the target class given a class and a class method" do
-      ENV['COUNT_CALLS_TO'] = "NinetyNine.luftballoons"
-      MetaMeta.new.target_class.should == 'NinetyNine'
-    end
-
-    it "parses the target modules given a namespaced class and an instance method" do
-      ENV['COUNT_CALLS_TO'] = "Ninety::Nine.luftballoons"
-      MetaMeta.new.target_modules.should == ['Ninety']
-    end
-
-    it "parses the target class given a namespaced class and an instance method" do
-      ENV['COUNT_CALLS_TO'] = "Ninety::Nine.luftballoons"
-      MetaMeta.new.target_class.should == 'Nine'
-    end
-
-    it "parses the target method given a class and an instance method" do
-      ENV['COUNT_CALLS_TO'] = "NinetyNine#luftballoons"
-      MetaMeta.new.target_method.should == 'luftballoons'
-    end
-
-    it "parses the target method given a class and a class method" do
-      ENV['COUNT_CALLS_TO'] = "NinetyNine.luftballoons"
-      MetaMeta.new.target_method.should == 'luftballoons'
-    end
-
-    it "parses the target method given a namespaced class and an instance method" do
-      ENV['COUNT_CALLS_TO'] = "Ninety::Nine.luftballoons"
-      MetaMeta.new.target_method.should == 'luftballoons'
-    end
-  end
-
   context "#locked_on_target?" do
     let(:meta_meta) { MetaMeta.new }
 
@@ -253,47 +190,6 @@ describe MetaMeta do
       ENV['COUNT_CALLS_TO'] = "Locutus::Borg.assimilate"
       module Locutus; class Borg; def self.assimilate; end; end; end
       meta_meta.target_method_defined?.should be_true
-    end
-  end
-
-  context "#validate_target" do
-    let(:meta_meta) { MetaMeta.new }
-
-    before do
-      ENV['COUNT_CALLS_TO'] = "Borg#assimilate"
-      class Borg; def assimilate; end; end
-    end
-
-    after do
-      delete_class('Borg')
-    end
-
-    it "returns true given a class name and instance method" do
-      meta_meta.validate_target('Class#method').should be_true
-    end
-
-    it "returns true given a namespaced class and instance method" do
-      meta_meta.validate_target('Module::Class#method').should be_true
-    end
-
-    it "returns true given a namespaced class and class method" do
-      meta_meta.validate_target('Module::Class.method').should be_true
-    end
-
-    it "returns true given a class name and class method" do
-      meta_meta.validate_target('Class.method').should be_true
-    end
-
-    it "returns false given a constant with both '#' and '.'" do
-      meta_meta.validate_target('Class#method.other_method').should be_false
-    end
-
-    it "returns false given a constant without '#' or '.'" do
-      meta_meta.validate_target('LonelyClassName').should be_false
-    end
-
-    it "returns false given a constant that does not start with a capital letter" do
-      meta_meta.validate_target('classesStartWithCapitalLetters').should be_false
     end
   end
 

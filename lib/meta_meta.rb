@@ -1,30 +1,19 @@
 require 'target'
 
 class MetaMeta
-  attr_reader :env_constant, :target_modules, :target_class, :target_method
+  attr_reader :target, :env_constant
   attr_accessor :call_count
 
   def initialize
     @env_constant = ENV['COUNT_CALLS_TO']
     @call_count = 0
-
-    parse_target
+    @target = Target.new(env_constant)
 
     if locked_on_target?
       infect
     else
       lie_in_wait
     end
-  end
-
-  def parse_target
-    raise InvalidTargetError unless validate_target(env_constant)
-
-    target = Target.new(env_constant)
-
-    @target_modules = target.module_names
-    @target_class = target.class_name
-    @target_method = target.method_name
   end
 
   def infect
@@ -45,14 +34,14 @@ class MetaMeta
 
   def define_include_trap
     meta_meta = self
-    target_method_name = target_method
+    target_method_name = target.method_name
     definition = Proc.new { |*args| super(*args); meta_meta.method_alert if method_defined?(target_method_name) }
     constant_metaclass.send(:define_method, :include, definition)
   end
 
   def define_extend_trap
     meta_meta = self
-    target_method_name = target_method
+    target_method_name = target.method_name
     definition = Proc.new { |*args| super(*args); meta_meta.method_alert if respond_to?(target_method_name) }
     constant_metaclass.send(:define_method, :extend, definition)
   end
@@ -63,16 +52,16 @@ class MetaMeta
   end
 
   def define_namespaced_class
-    modules = target_modules.inject(Object) do |memo, module_name|
+    modules = target.module_names.inject(Object) do |memo, module_name|
       memo = memo.const_set(module_name, Module.new)
     end
 
-    modules.const_set(target_class, Class.new)
+    modules.const_set(target.class_name, Class.new)
   end
 
   def define_method_added_trap
     meta_meta = self
-    target_method_name = target_method
+    target_method_name = target.method_name
     definition = Proc.new { |method_name| meta_meta.method_alert if method_name.to_s == target_method_name }
 
     if target_is_instance_method?
@@ -103,19 +92,19 @@ class MetaMeta
   end
 
   def target_class_defined?
-    if target_modules.any?
+    if target.module_names.any?
       target_class_defined_within_module?
     else
-      Object.const_defined?(target_class)
+      Object.const_defined?(target.class_name)
     end
   end
 
   def target_class_defined_within_module?
-    constant_top_level_namespace.const_defined?(target_class)
+    constant_top_level_namespace.const_defined?(target.class_name)
   end
 
   def target_method_defined?
-    if target_modules.any?
+    if target.module_names.any?
       target_method_defined_within_module?
     else
       method_in_class?(constant_class)
@@ -123,7 +112,7 @@ class MetaMeta
   end
 
   def method_in_class?(search_class)
-    search_class.respond_to?(target_method) || search_class.method_defined?(target_method)
+    search_class.respond_to?(target.method_name) || search_class.method_defined?(target.method_name)
   end
 
   def target_method_defined_within_module?
@@ -152,11 +141,11 @@ class MetaMeta
   end
 
   def define_instance_method
-    constant_class.send(:define_method, target_method, replacement_method)
+    constant_class.send(:define_method, target.method_name, replacement_method)
   end
 
   def define_class_method
-    constant_class.send(:define_singleton_method, target_method, replacement_method)
+    constant_class.send(:define_singleton_method, target.method_name, replacement_method)
   end
 
   def replacement_method
@@ -167,15 +156,15 @@ class MetaMeta
 
   def define_alias_method
     if target_is_instance_method?
-      constant_class.send(:alias_method, alias_method_name, target_method)
+      constant_class.send(:alias_method, alias_method_name, target.method_name)
     else
       metaclass = class << constant_class; self; end
-      metaclass.send(:alias_method, alias_method_name, target_method)
+      metaclass.send(:alias_method, alias_method_name, target.method_name)
     end
   end
 
   def alias_method_name
-    "original_#{target_method}"
+    "original_#{target.method_name}"
   end
 
   def target_is_instance_method?
@@ -184,15 +173,15 @@ class MetaMeta
 
 
   def constant_class
-    Object.const_get(target_class)
+    Object.const_get(target.class_name)
   end
 
   def constant_top_level_namespace
-    Object.const_get(target_modules.first)
+    Object.const_get(target.module_names.first)
   end
 
   def constant_namespaced_class
-    namespaced_class = target_modules + Array(target_class)
+    namespaced_class = target.module_names + Array(target.class_name)
 
     namespaced_class.inject(Object) do |memo, constant|
       memo = memo.const_get(constant)

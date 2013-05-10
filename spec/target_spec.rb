@@ -51,4 +51,59 @@ describe Target do
       target.parse_module_names.should == ['Foo', 'Bar']
     end
   end
+
+  context "#valid_target?" do
+    let(:target) { Target.new('Borg#assimilate') }
+
+    it "returns true given a class name and instance method" do
+      target.should be_valid_target
+    end
+
+    it "returns true given a namespaced class and instance method" do
+      target.target_name = 'Borg::Locutus#assimilate'
+      target.should be_valid_target
+    end
+
+    it "returns true given a namespaced class and class method" do
+      target.target_name = 'Borg::Locutus.assimilate'
+      target.should be_valid_target
+    end
+
+    it "returns true given a class name and class method" do
+      target.target_name = 'Borg.assimilate'
+      target.should be_valid_target
+    end
+
+    it "returns false given a constant with both '#' and '.'" do
+      target.target_name = 'Borg.Locutus#assimilate'
+      target.should_not be_valid_target
+    end
+
+    it "returns false given a constant without '#' or '.'" do
+      target.target_name = 'Borg'
+      target.should_not be_valid_target
+    end
+
+    it "returns false given a constant that does not start with a capital letter" do
+      target.target_name = 'borg'
+      target.should_not be_valid_target
+    end
+  end
+
+  context "raises an InvalidTargetError" do
+    it "raises an InvalidTargetError given a constant without '#' or '.'" do
+      error = Target::InvalidTargetNameError
+      expect { Target.new("NinetyNineLuftballoons") }.to raise_error error
+    end
+
+    it "raises an InvalidTargetError given a constant with '#' and '.'" do
+      error = Target::InvalidTargetNameError
+      expect { Target.new("NinetyNine#luft.balloons") }.to raise_error error
+    end
+
+    it "raises an InvalidTargetError given a constant that starts with a lowercase letter" do
+      error = Target::InvalidTargetNameError
+      expect { Target.new("ninetyNineLuftballoons") }.to raise_error error
+    end
+  end
 end
